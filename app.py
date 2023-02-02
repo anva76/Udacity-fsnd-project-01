@@ -5,7 +5,7 @@
 import json
 import dateutil.parser
 import babel
-from flask import Flask, render_template, request, Response, flash, redirect, url_for
+from flask import Flask, render_template, request, Response, flash, redirect, url_for, abort
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 import logging
@@ -13,8 +13,16 @@ from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
 from flask_migrate import Migrate
-#from multidict import MultiDict
 from datetime import datetime
+
+#----------------------------------------------------------------------------#
+class FlashType:
+    ERROR = 'danger'
+    SUCCESS = 'success'
+    INFO = 'info'
+    WARNING = 'warning'
+#----------------------------------------------------------------------------#
+
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -67,6 +75,10 @@ class Venue(db.Model):
         x.name: getattr(self, x.name)
         for x in self.__table__.columns
       }
+
+    def update_from_dict(self, data):
+      for key, value in data.items():
+        setattr(self, key, value)
 
     def num_upcoming_shows(self):
       return Show.query.filter(Show.start_time > datetime.now(),
@@ -123,6 +135,10 @@ class Artist(db.Model):
         for x in self.__table__.columns
       }
 
+    def update_from_dict(self, data):
+      for key, value in data.items():
+        setattr(self, key, value)
+
     def num_upcoming_shows(self):
       return Show.query.filter(Show.start_time > datetime.now(),
                                Show.artist_id == self.id).count()
@@ -153,6 +169,12 @@ class Show(db.Model):
     def __repr__(self):
       return f'<Show: venue_id: {self.venue_id}, artist_id: {self.artist_id}'
 
+    def to_dict(self):
+      return {
+        x.name: getattr(self, x.name)
+        for x in self.__table__.columns
+      }
+
 # TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
 #----------------------------------------------------------------------------#
@@ -169,13 +191,19 @@ def format_datetime(value, format='medium'):
 
 app.jinja_env.filters['datetime'] = format_datetime
 
-
 #----------------------------------------------------------------------------#
+# Format form validation errors 
+#----------------------------------------------------------------------------#
+def flash_form_error_message(form):
+  for field, errors in form.errors.items():
+    msg = ''
+    err_list = ', '.join(errors)
+    msg += f'{form[field].label.text}: {err_list}'
+    flash(msg, FlashType.ERROR)
 
 #----------------------------------------------------------------------------#
 # Controllers.
 #----------------------------------------------------------------------------#
-
 
 @app.route('/')
 def index():
@@ -396,12 +424,22 @@ def create_venue_submission():
   # TODO: insert form data as a new Venue record in the db, instead
   # TODO: modify data to be the data object returned from db insertion
 
-  # on successful db insert, flash success
-  flash('Venue ' + request.form['name'] + ' was successfully listed!')
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
-  # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-  return render_template('pages/home.html')
+  form = VenueForm(request.form)
+  print(form.data)
+  if form.validate():
+    venue = Venue(**form.data)
+    db.session.add(venue)
+    db.session.commit()
+    flash(f'Venue {request.form["name"]} was successfully listed!')
+    return render_template('pages/home.html')
+  else:
+    flash_form_error_message(form)
+    return render_template('forms/new_venue.html', form=form)
+
+    # on successful db insert, flash success
+    # TODO: on unsuccessful db insert, flash an error instead.
+    # e.g., flash('An error occurred. Venue ' + data.name + ' could not be listed.')
+    # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
@@ -604,8 +642,10 @@ def edit_artist(artist_id):
   '''
 
   artist = db.session.get(Artist, artist_id)
-  data = artist.to_dict()
+  if artist is None:
+    abort(404)
 
+  data = artist.to_dict()
   form = ArtistForm()
   form.genres.default = data['genres']
   form.process(**data)
@@ -614,14 +654,31 @@ def edit_artist(artist_id):
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
+
   # TODO: take values from the form submitted, and update existing
   # artist record with ID <artist_id> using the new attributes
+  artist = db.session.get(Artist, artist_id)
+  if artist is None:
+    abort(404)
 
-  return redirect(url_for('show_artist', artist_id=artist_id))
+  form = ArtistForm(request.form)
+  print(form.data)
+  if form.validate():
+    artist.update_from_dict(form.data)
+    db.session.add(artist)
+    db.session.commit()
+    flash(f'Artist {request.form["name"]} was successfully updated!', FlashType.INFO)
+    return redirect(url_for('show_artist', artist_id=artist_id))
+    # TODO: on unsuccessful db insert, flash an error instead.
+    # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
+  else:
+    flash_form_error_message(form)
+    data = artist.to_dict()
+    return render_template('forms/edit_artist.html', form=form, artist=data)
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
-  
+  '''
   venue={
     "id": 1,
     "name": "The Musical Hop",
@@ -636,6 +693,8 @@ def edit_venue(venue_id):
     "seeking_description": "We are on the lookout for a local artist to play every two weeks. Please call us.",
     "image_link": "https://images.unsplash.com/photo-1543900694-133f37abaaa5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=400&q=60"
   }
+  ''' 
+  
   # TODO: populate form with values from venue with ID <venue_id>
   venue = db.session.get(Venue, venue_id)
   data = venue.to_dict()
@@ -649,9 +708,26 @@ def edit_venue(venue_id):
 
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
-  # TODO: take values from the form submitted, and update existing
-  # venue record with ID <venue_id> using the new attributes
-  return redirect(url_for('show_venue', venue_id=venue_id))
+
+	# TODO: take values from the form submitted, and update existing
+	# venue record with ID <venue_id> using the new attributes
+
+  venue = db.session.get(Venue, venue_id)
+  if venue is None:
+    abort(404)
+
+  form = VenueForm(request.form)
+  if form.validate():
+    venue.update_from_dict(form.data)
+    db.session.add(venue)
+    db.session.commit()
+    flash(f'Venue {request.form["name"]} was successfully updated!', FlashType.INFO)
+    return redirect(url_for('show_venue', venue_id=venue_id))
+  else:
+    flash_form_error_message(form)
+    data = venue.to_dict()
+    return render_template('forms/edit_venue.html', form=form, venue=data)
+
 
 #  Create Artist
 #  ----------------------------------------------------------------
@@ -666,12 +742,22 @@ def create_artist_submission():
   # called upon submitting the new artist listing form
   # TODO: insert form data as a new Venue record in the db, instead
   # TODO: modify data to be the data object returned from db insertion
+    form = ArtistForm(request.form)
+    print(form.data)
+    if form.validate():
 
-  # on successful db insert, flash success
-  flash('Artist ' + request.form['name'] + ' was successfully listed!')
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
-  return render_template('pages/home.html')
+      artist = Artist(**form.data)
+      db.session.add(artist)
+      db.session.commit()
+
+      # on successful db insert, flash success
+      flash(f'Artist {request.form["name"]} was successfully listed!', FlashType.INFO)
+      # TODO: on unsuccessful db insert, flash an error instead.
+      # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
+      return render_template('pages/home.html')
+    else:
+      flash_form_error_message(form)
+      return render_template('forms/new_artist.html', form=form)
 
 
 #  Shows
@@ -744,12 +830,17 @@ def create_show_submission():
   # called to create new shows in the db, upon submitting new show listing form
   # TODO: insert form data as a new Show record in the db, instead
 
-  # on successful db insert, flash success
-  flash('Show was successfully listed!')
-  # TODO: on unsuccessful db insert, flash an error instead.
-  # e.g., flash('An error occurred. Show could not be listed.')
-  # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-  return render_template('pages/home.html')
+  form = ShowForm(request.form)
+  if form.validate():
+    show = Show(**form.data)
+    db.session.add(show)
+    db.session.commit()
+    flash('Show was successfully listed!')
+    return render_template('pages/home.html')
+  else:
+    flash_form_error_message(form)
+    return render_template('forms/new_show.html', form=form)
+
 
 @app.errorhandler(404)
 def not_found_error(error):
