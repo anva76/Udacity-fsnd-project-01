@@ -1,11 +1,11 @@
 from app import app, db, Artist, Venue, Show
 from sqlalchemy import text
+import json
 
 def print_data(data):
-  print('-----------------------------------------------------------------')
   for row in data:
     print(
-      row.to_dict()
+      json.dumps(row.to_dict(), indent=4, default=str)
     )
 
 # ------------------------------------------------------------------------
@@ -61,6 +61,7 @@ with app.app_context():
     db.session.execute(text('alter sequence "Artist_id_seq" restart with 15'))
     db.session.commit()
 
+    print('===== Artist data ======')
     print_data(Artist.query.all())
 
 
@@ -121,6 +122,7 @@ with app.app_context():
     db.session.execute(text('alter sequence "Venue_id_seq" restart with 15;'))
     db.session.commit()
 
+    print('===== Venue data ======')
     print_data(Venue.query.all())
 
 # ------------------------------------------------------------------------
@@ -155,6 +157,7 @@ with app.app_context():
         db.session.add(show)
         db.session.commit()
 
+    print('===== Show data ======')
     print_data(Show.query.all())
 
 

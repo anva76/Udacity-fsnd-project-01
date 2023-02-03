@@ -75,7 +75,35 @@
 	</div>
 </section>
 
-<a href="/venues/{{ venue.id }}/edit"><button class="btn btn-primary btn-lg">Edit</button></a>
+<section class="col-md-6">
+	<a href="/venues/{{ venue.id }}/edit"><button class="btn btn-primary btn-lg col-md-2">Edit</button></a>
 
+	<div class="col-md-1"></div>
+	<button type="button" class="btn btn-danger btn-lg col-md-2" data-toggle="modal" data-target="#deleteModal">
+		Delete
+	</button>
+</section>
+
+<!-- Confirmation modal to delete a venue -->
+<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+			<div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+                <h4 class="modal-title">Delete this venue?</h4>
+            </div>
+			<div class="modal-footer">
+				<form action="{{ url_for('delete_venue', venue_id=venue.id)}}" method="post">
+					<button type="submit" class="btn btn-danger" id="delButton">Delete</button>
+					<button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+				</form>	
+			</div>
+			
+        </div>
+    </div>
+</div>
+<!-- -------------------- -->
 {% endblock %}
 
