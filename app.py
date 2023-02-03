@@ -300,7 +300,7 @@ def create_venue_form():
   form = VenueForm()
   return render_template('forms/new_venue.html', form=form)
 
-@app.route('/venues/create', methods=['POST'])
+@app.route('/venues/create/', methods=['POST'])
 def create_venue_submission():
   error = False
   form = VenueForm(request.form)
@@ -440,7 +440,7 @@ def edit_artist(artist_id):
 
   return render_template('forms/edit_artist.html', form=form, artist=data)
 
-@app.route('/artists/<int:artist_id>/edit', methods=['POST'])
+@app.route('/artists/<int:artist_id>/edit/', methods=['POST'])
 def edit_artist_submission(artist_id):
 
   error = False
@@ -530,7 +530,7 @@ def create_artist_form():
   form = ArtistForm()
   return render_template('forms/new_artist.html', form=form)
 
-@app.route('/artists/create', methods=['POST'])
+@app.route('/artists/create/', methods=['POST'])
 def create_artist_submission():
 
     error = False
@@ -556,7 +556,7 @@ def create_artist_submission():
       abort(500)
     else:
       flash(f'Artist {request.form["name"]} was successfully listed!', FlashType.INFO)
-      return render_template('pages/home.html')
+      return redirect(url_for('index'))
 
 #  Shows
 #  ----------------------------------------------------------------
@@ -578,13 +578,13 @@ def shows():
 
   return render_template('pages/shows.html', shows=data)
 
-@app.route('/shows/create/')
+@app.route('/shows/create/', methods=['GET'])
 def create_shows():
   # renders form. do not touch.
   form = ShowForm()
   return render_template('forms/new_show.html', form=form)
 
-@app.route('/shows/create', methods=['POST'])
+@app.route('/shows/create/', methods=['POST'])
 def create_show_submission():
 
   error = False
@@ -606,11 +606,12 @@ def create_show_submission():
     db.session.close()
 
   if error:
-    flash('An error occured. The new show could not be listed!')
+    flash('An error occured. The new show could not be listed!', FlashType.ERROR)
     abort(500)
   else:
-    flash('Show was successfully listed!')
-    return render_template('pages/home.html')
+    flash('Show was successfully listed!', FlashType.INFO)
+    return redirect(url_for('index'))
+
 
 @app.errorhandler(404)
 def not_found_error(error):
