@@ -1,6 +1,9 @@
 # Created by https://www.toptal.com/developers/gitignore/api/flask
 # Edit at https://www.toptal.com/developers/gitignore?templates=flask
 
+# KDE Plasma Dolphin files
+.directory
+
 ### Flask ###
 instance/*
 !instance/.gitignore
