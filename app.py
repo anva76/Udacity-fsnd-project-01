@@ -5,15 +5,16 @@ import sys
 import json
 import dateutil.parser
 import babel
-from flask import Flask, render_template, request, Response, flash, redirect, url_for, abort
+from flask import Flask, render_template, request, Response, flash, redirect, url_for, abort, jsonify
 from flask_moment import Moment
-from flask_sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
 from flask_migrate import Migrate
 from datetime import datetime
+from models import Venue, Artist, Show
+from db import db
 
 #----------------------------------------------------------------------------#
 class FlashType:
@@ -29,151 +30,8 @@ class FlashType:
 app = Flask(__name__)
 moment = Moment(app)
 app.config.from_object('config')
-db = SQLAlchemy(app)
+db.init_app(app)
 migrate = Migrate(app, db)
-
-# TODO: connect to a local postgresql database
-
-#----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-class Venue(db.Model):
-    __tablename__ = 'Venue'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    address = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-    #added:
-    _genres = db.Column('genres', db.String(120))
-    website = db.Column(db.String(120), nullable=True)
-    seeking_talent = db.Column(db.Boolean(), default=False)
-    seeking_description = db.Column(db.String(200), nullable=True)
-
-    shows = db.relationship('Show', back_populates='venue')
-
-    @property
-    def genres(self):
-      return json.loads(self._genres)
-
-    @genres.setter
-    def genres(self, value):
-      self._genres = json.dumps(value)
-
-
-    def __repr__(self):
-      return f'<Venue: id: {self.id}, name: {self.name}>'
-
-    def to_dict(self):
-      return {
-        x.name: getattr(self, x.name)
-        for x in self.__table__.columns
-      }
-
-    def update_from_dict(self, data):
-      for key, value in data.items():
-        setattr(self, key, value)
-
-    def num_upcoming_shows(self):
-      return Show.query.filter(Show.start_time > datetime.now(),
-                               Show.venue_id == self.id).count()
-
-    def num_past_shows(self):
-      return Show.query.filter(Show.start_time < datetime.now(),
-                               Show.venue_id == self.id).count()
-
-    def get_upcoming_shows(self):
-      return Show.query.filter(Show.start_time > datetime.now(),
-                               Show.venue_id == self.id).all()
-
-    def get_past_shows(self):
-      return Show.query.filter(Show.start_time < datetime.now(),
-                               Show.venue_id == self.id).all()
-
-
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
-class Artist(db.Model):
-    __tablename__ = 'Artist'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-    # added:
-    _genres = db.Column('genres', db.String(120))
-    website = db.Column(db.String(120), nullable=True)
-    seeking_venue = db.Column(db.Boolean(), default=False)
-    seeking_description = db.Column(db.String(200), nullable=True)
-
-    #venues = db.relationship('Venue', secondary='Show', back_populates='artists')
-    shows = db.relationship('Show', back_populates='artist')
-
-    @property
-    def genres(self):
-      return json.loads(self._genres)
-
-    @genres.setter
-    def genres(self, value):
-      self._genres = json.dumps(value)
-
-    def __repr__(self):
-      return f'<Artist: id: {self.id}, name: {self.name}>'
-
-    def to_dict(self):
-      return {
-        x.name: getattr(self, x.name)
-        for x in self.__table__.columns
-      }
-
-    def update_from_dict(self, data):
-      for key, value in data.items():
-        setattr(self, key, value)
-
-    def num_upcoming_shows(self):
-      return Show.query.filter(Show.start_time > datetime.now(),
-                               Show.artist_id == self.id).count()
-
-    def num_past_shows(self):
-      return Show.query.filter(Show.start_time < datetime.now(),
-                               Show.artist_id == self.id).count()
-
-    def get_upcoming_shows(self):
-      return Show.query.filter(Show.start_time > datetime.now(),
-                               Show.artist_id == self.id).all()
-
-    def get_past_shows(self):
-      return Show.query.filter(Show.start_time < datetime.now(),
-                               Show.artist_id == self.id).all()
-
-class Show(db.Model):
-    __tablename__ = 'Show'
-
-    id = db.Column(db.Integer, primary_key=True)
-    venue_id = db.Column(db.Integer(), db.ForeignKey('Venue.id'))
-    artist_id = db.Column(db.Integer(), db.ForeignKey('Artist.id'))
-    start_time = db.Column(db.DateTime(timezone=True))
-
-    venue = db.relationship('Venue', back_populates='shows')
-    artist = db.relationship('Artist', back_populates='shows')
-
-    def __repr__(self):
-      return f'<Show: venue_id: {self.venue_id}, artist_id: {self.artist_id}'
-
-    def to_dict(self):
-      return {
-        x.name: getattr(self, x.name)
-        for x in self.__table__.columns
-      }
-
-# TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -204,8 +62,9 @@ def flash_form_error_message(form):
 
 @app.route('/')
 def index():
-  return render_template('pages/home.html')
-
+  venues = Venue.query.order_by(Venue.created_at.desc()).limit(10).all()
+  artists = Artist.query.order_by(Artist.created_at.desc()).limit(10).all()
+  return render_template('pages/home.html', venues=venues, artists=artists)
 
 #  Venues
 #  ----------------------------------------------------------------
@@ -256,6 +115,31 @@ def search_venues():
 
   #print(response)
   return render_template('pages/search_venues.html', results=response, search_term=search_term)
+
+#  Advanced venue search
+#  ----------------------------------------------------------------
+@app.route('/venues/search_adv', methods=['GET', 'POST'])
+def search_venues_advanced():
+
+  if request.method == 'GET':
+    form = SearchForm()
+    return render_template('pages/search_venues_adv.html', results=None, form=form)
+
+  form = SearchForm(request.form)
+  name = form.data.get('name', '')
+  city = form.data.get('city', '')
+  state = form.data.get('state', '')
+ 
+  if state != '':
+    venues = Venue.query.filter(Venue.name.ilike(f'%{name}%'),
+                                Venue.city.ilike(f'%{city}%'),
+                                Venue.state == state).all()
+  else:
+    venues = Venue.query.filter(Venue.name.ilike(f'%{name}%'),
+                                Venue.city.ilike(f'%{city}%')).all()     
+
+  return render_template('pages/search_venues_adv.html', results=venues, form=form)
+
 
 @app.route('/venues/<int:venue_id>/')
 def show_venue(venue_id):
@@ -328,9 +212,11 @@ def create_venue_submission():
     flash(f'Venue {request.form["name"]} was successfully listed!', FlashType.INFO)
     return redirect(url_for('index'))
 
+
+#  Delete Venue via an http post request
+#  ----------------------------------------------------------------
 @app.route('/venues/<venue_id>/delete/', methods=['POST'])
 def delete_venue(venue_id):
-
   error = False
   venue = db.session.get(Venue, venue_id)
   if venue is None:
@@ -352,6 +238,39 @@ def delete_venue(venue_id):
   else:
     flash(f'Venue {venue.name} was deleted!', FlashType.INFO)
     return redirect(url_for('index'))
+
+#  Delete Venue via an http delete request (ajax) 
+#  ----------------------------------------------------------------
+@app.route('/venues/<venue_id>', methods=['DELETE'])
+def delete_venue_json(venue_id):
+  error = False
+  venue = db.session.get(Venue, venue_id)
+  if venue is None:
+    return jsonify ({
+      'error': 'Venue was not found.'
+    }), 404
+
+  try:
+    db.session.delete(venue)
+    db.session.commit()
+  except:
+    error = True
+    db.session.rollback()
+    print(sys.exc_info())
+  finally:
+    db.session.close()  
+
+  if error:
+    return jsonify({
+      'error': f'Venue {venue.name} could not be deleted.'
+    }), 500
+  else:
+    return jsonify({
+      'venue': {
+        'id': venue.id,
+        'name': venue.name,
+      }
+    }), 201
 
 
 #  Artists
@@ -389,6 +308,32 @@ def search_artists():
     }
 
   return render_template('pages/search_artists.html', results=response, search_term=search_term)
+
+#  Advanced artist search
+#  ----------------------------------------------------------------
+@app.route('/artists/search_adv', methods=['GET', 'POST'])
+def search_artists_advanced():
+
+  if request.method == 'GET':
+    form = SearchForm()
+    return render_template('pages/search_artists_adv.html', results=None, form=form)
+
+  form = SearchForm(request.form)
+  name = form.data.get('name', '')
+  city = form.data.get('city', '')
+  state = form.data.get('state', '')
+ 
+  if state != '':
+    artists = Artist.query.filter(Artist.name.ilike(f'%{name}%'),
+                                 Artist.city.ilike(f'%{city}%'),
+                                 Artist.state == state).all()
+  else:
+    artists = Artist.query.filter(Artist.name.ilike(f'%{name}%'),
+                                 Artist.city.ilike(f'%{city}%')).all()     
+
+
+  return render_template('pages/search_artists_adv.html', results=artists, form=form)
+
 
 @app.route('/artists/<int:artist_id>/')
 def show_artist(artist_id):

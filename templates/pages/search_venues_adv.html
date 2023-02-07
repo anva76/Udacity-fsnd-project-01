@@ -1,0 +1,52 @@
+{% extends 'layouts/main.html' %}
+{% block title %}Fyyur | Venues Search{% endblock %}
+{% block content %}
+
+<h3>Advanced venue search</h3>
+<section class="row">
+    <form action="{{ url_for('search_venues_advanced') }}" class="col-sm-6" method="post">
+        <div class="form-group">
+            {{ form.name.label }}
+            {{ form.name(class_ = 'form-control', autofocus = true) }}
+        </div>
+        <div class="form-group">
+            {{ form.city.label }}
+            {{ form.city(class_ = 'form-control', autofocus = true) }}
+        </div>
+        <div class="form-group">
+            {{ form.state.label }}
+            {{ form.state(class_ = 'form-control', autofocus = true) }}
+        </div>
+
+        <input type="submit" value="Search" class="btn btn-primary btn-lg">
+    </form>
+</section>
+<section class="row">
+{% if results %}
+    <h3>Search results: {{ results|length }}</h3>
+
+    {% if results|length > 0 %}
+    <table class="table">
+        <tr>
+            <th>Name</th>
+            <th>City</th>
+            <th>State</th>
+        </tr>
+        {% for venue in results %}
+         <tr>
+            <td>
+                <a href="{{ url_for('show_venue', venue_id=venue.id) }}">
+                    <i class="fas fa-music"></i>
+                    {{ venue.name }}
+                </a>                
+            </td>
+            <td>{{venue.city}}</td>
+            <td>{{venue.state}}</td>
+         </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+{% endif %}
+</section>
+
+{% endblock %}
