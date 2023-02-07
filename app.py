@@ -75,7 +75,8 @@ def venues():
   #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
 
   areas = []
-  cities = db.session.query(Venue.city, Venue.state).group_by(Venue.city, Venue.state).all()
+  cities = db.session.query(Venue.city, Venue.state).group_by(Venue.city, Venue.state)\
+                                                    .order_by(Venue.city).all()  
   for city in cities:
     area = {
       'city': city[0],
@@ -86,7 +87,8 @@ def venues():
               'name': x.name,
               'num_upcoming_shows': x.num_upcoming_shows(),
             }
-            for x in Venue.query.filter(Venue.city == city[0], Venue.state == city[1]).all()
+            for x in Venue.query.filter(Venue.city == city[0], Venue.state == city[1])\
+                                .order_by(Venue.name).all()
         ]
     }
     #print(area)
@@ -283,7 +285,7 @@ def artists():
             'id': x.id,
             'name': x.name,
         }
-        for x in Artist.query.all()
+        for x in Artist.query.order_by(Artist.name).all()
     ]
 
   return render_template('pages/artists.html', artists=data)
