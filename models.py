@@ -1,6 +1,11 @@
 import json
-from db import db
 from datetime import datetime
+from flask_sqlalchemy import SQLAlchemy
+
+#----------------------------------------------------------------------------#
+# SQLAlchemy instance
+#----------------------------------------------------------------------------#
+db = SQLAlchemy()
 
 #----------------------------------------------------------------------------#
 # Models.
@@ -17,22 +22,19 @@ class Venue(db.Model):
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
     #added:
-    _genres = db.Column('genres', db.String(120))
+    genres = db.Column(db.ARRAY(db.String), nullable=False)
     website = db.Column(db.String(120), nullable=True)
     seeking_talent = db.Column(db.Boolean(), default=False)
     seeking_description = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=datetime.now())
 
-    shows = db.relationship('Show', back_populates='venue', cascade='all,delete-orphan')
-
-    @property
-    def genres(self):
-      return json.loads(self._genres)
-
-    @genres.setter
-    def genres(self, value):
-      self._genres = json.dumps(value)
-
+    shows = db.relationship(
+        'Show', 
+        back_populates='venue',
+        order_by='Show.start_time',
+        lazy='joined', 
+        cascade='all,delete-orphan'
+      )
 
     def __repr__(self):
       return f'<Venue: id: {self.id}, name: {self.name}>'
@@ -64,8 +66,6 @@ class Venue(db.Model):
                                Show.venue_id == self.id).all()
 
 
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
 class Artist(db.Model):
     __tablename__ = 'Artist'
 
@@ -77,21 +77,19 @@ class Artist(db.Model):
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
     # added:
-    _genres = db.Column('genres', db.String(120))
+    genres = db.Column(db.ARRAY(db.String), nullable=False)
     website = db.Column(db.String(120), nullable=True)
     seeking_venue = db.Column(db.Boolean(), default=False)
     seeking_description = db.Column(db.String(200), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=datetime.now())
 
-    shows = db.relationship('Show', back_populates='artist', cascade='all,delete-orphan')
-
-    @property
-    def genres(self):
-      return json.loads(self._genres)
-
-    @genres.setter
-    def genres(self, value):
-      self._genres = json.dumps(value)
+    shows = db.relationship(
+        'Show', 
+        back_populates='artist', 
+        order_by='Show.start_time',
+        lazy='joined', 
+        cascade='all,delete-orphan'
+      )
 
     def __repr__(self):
       return f'<Artist: id: {self.id}, name: {self.name}>'

@@ -12,9 +12,8 @@ from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
 from flask_migrate import Migrate
-from datetime import datetime
-from models import Venue, Artist, Show
-from db import db
+from datetime import datetime, timezone
+from models import Venue, Artist, Show, db
 
 #----------------------------------------------------------------------------#
 class FlashType:
@@ -22,7 +21,6 @@ class FlashType:
     SUCCESS = 'success'
     INFO = 'info'
     WARNING = 'warning'
-#----------------------------------------------------------------------------#
 
 #----------------------------------------------------------------------------#
 # App Config.
@@ -152,30 +150,25 @@ def show_venue(venue_id):
 
   data = venue.to_dict()
 
-  data['upcoming_shows'] = [
-        {
-          'artist_id': x.artist_id,
-          'artist_name': x.artist.name,
-          'artist_image_link': x.artist.image_link,
-          'start_time': x.start_time.isoformat(),
-        }
-        for x in venue.get_upcoming_shows()
-    ]
+  data['past_shows'] = []
+  data['upcoming_shows'] = []
 
-  data['past_shows'] = [
-        {
-          'artist_id': x.artist_id,
-          'artist_name': x.artist.name,
-          'artist_image_link': x.artist.image_link,
-          'start_time': x.start_time.isoformat(),
-        }
-        for x in venue.get_past_shows()
-    ]
+  for show in venue.shows:
+    tmp_show = {
+          'artist_id': show.artist_id,
+          'artist_name': show.artist.name,
+          'artist_image_link': show.artist.image_link,
+          'start_time': show.start_time.isoformat(),       
+      }
+        
+    if show.start_time <= datetime.now(timezone.utc):
+      data['past_shows'].append(tmp_show)
+    else:
+      data['upcoming_shows'].append(tmp_show)     
 
-  data['past_shows_count'] = venue.num_past_shows()
-  data['upcoming_shows_count'] = venue.num_upcoming_shows()
+  data['past_shows_count'] = len(data['past_shows'])
+  data['upcoming_shows_count'] = len(data['upcoming_shows'])
 
-  #print(data)
   return render_template('pages/show_venue.html', venue=data)
 
 #  Create Venue
@@ -346,28 +339,23 @@ def show_artist(artist_id):
 
   data = artist.to_dict()
 
-  data['upcoming_shows'] = [
-        {
-            'venue_id': x.venue_id,
-            'venue_name': x.venue.name,
-            'venue_image_link': x.venue.image_link,
-            'start_time': x.start_time.isoformat(),
-        }
-        for x in artist.get_upcoming_shows()
-    ]
+  data['past_shows'] = []
+  data['upcoming_shows'] = []
+  for show in artist.shows:
+    tmp_show = {
+          'venue_id': show.venue_id,
+          'venue_name': show.venue.name,
+          'venue_image_link': show.venue.image_link,
+          'start_time': show.start_time.isoformat(),        
+      }
 
-  data['past_shows'] = [
-        {
-            'venue_id': x.venue_id,
-            'venue_name': x.venue.name,
-            'venue_image_link': x.venue.image_link,
-            'start_time': x.start_time.isoformat(),
-        }
-        for x in artist.get_past_shows()
-    ]
+    if show.start_time <= datetime.now(timezone.utc):
+      data['past_shows'].append(tmp_show)
+    else:
+      data['upcoming_shows'].append(tmp_show)
 
-  data['upcoming_shows_count'] = artist.num_upcoming_shows()
-  data['past_shows_count'] = artist.num_past_shows()
+  data['upcoming_shows_count'] = len(data['upcoming_shows'])
+  data['past_shows_count'] = len(data['past_shows'])
 
   return render_template('pages/show_artist.html', artist=data)
 
@@ -520,22 +508,29 @@ def shows():
           'artist_image_link': x.artist.image_link,
           'start_time': x.start_time.isoformat()
         }
-        for x in Show.query.all()
+        for x in Show.query.order_by(Show.start_time).all()
     ]
 
   return render_template('pages/shows.html', shows=data)
 
+
+# Create Show
+# -----------------------------------------------------------
 @app.route('/shows/create/', methods=['GET'])
 def create_shows():
-  # renders form. do not touch.
-  form = ShowForm()
+  artists = Artist.query.all()
+  venues = Venue.query.all()
+  form = ShowForm(artists=artists, venues=venues)
+
   return render_template('forms/new_show.html', form=form)
 
 @app.route('/shows/create/', methods=['POST'])
 def create_show_submission():
 
   error = False
-  form = ShowForm(request.form)
+  artists = Artist.query.all()
+  venues = Venue.query.all()
+  form = ShowForm(request.form, artists=artists, venues=venues)
 
   if not form.validate():
     flash_form_error_message(form)
