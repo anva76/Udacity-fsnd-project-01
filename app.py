@@ -183,14 +183,14 @@ def create_venue_form():
 def create_venue_submission():
   error = False
   form = VenueForm(request.form)
-  #print(form.data)
   
   if not form.validate():
     flash_form_error_message(form)
     return render_template('forms/new_venue.html', form=form)
 
   try:
-    venue = Venue(**form.data)
+    venue = Venue()
+    form.populate_obj(venue)
     db.session.add(venue)
     db.session.commit()
   except:
@@ -367,13 +367,9 @@ def edit_artist(artist_id):
   artist = db.session.get(Artist, artist_id)
   if artist is None:
     abort(404)
-
-  data = artist.to_dict()
-  form = ArtistForm()
-  form.genres.default = data['genres']
-  form.process(**data)
-
-  return render_template('forms/edit_artist.html', form=form, artist=data)
+  
+  form = ArtistForm(obj=artist)
+  return render_template('forms/edit_artist.html', form=form, artist=artist)
 
 @app.route('/artists/<int:artist_id>/edit/', methods=['POST'])
 def edit_artist_submission(artist_id):
@@ -384,15 +380,13 @@ def edit_artist_submission(artist_id):
     abort(404)
 
   form = ArtistForm(request.form)
-  #print(form.data)
 
   if not form.validate():
     flash_form_error_message(form)
-    data = artist.to_dict()
-    return render_template('forms/edit_artist.html', form=form, artist=data)
+    return render_template('forms/edit_artist.html', form=form, artist=artist)
 
   try:
-    artist.update_from_dict(form.data)
+    form.populate_obj(artist)
     db.session.add(artist)
     db.session.commit()
   except:
@@ -417,13 +411,9 @@ def edit_venue(venue_id):
   if venue is None:
     abort(404)
 
-  data = venue.to_dict()
-  #print(data)
-  form = VenueForm()
-  form.genres.default = data['genres']
-  form.process(**data)
+  form = VenueForm(obj=venue)
 
-  return render_template('forms/edit_venue.html', form=form, venue=data)
+  return render_template('forms/edit_venue.html', form=form, venue=venue)
 
 @app.route('/venues/<int:venue_id>/edit/', methods=['POST'])
 def edit_venue_submission(venue_id):
@@ -436,11 +426,10 @@ def edit_venue_submission(venue_id):
   form = VenueForm(request.form)
   if not form.validate():
     flash_form_error_message(form)
-    data = venue.to_dict()
-    return render_template('forms/edit_venue.html', form=form, venue=data)
+    return render_template('forms/edit_venue.html', form=form, venue=venue)
 
   try:
-    venue.update_from_dict(form.data)
+    form.populate_obj(venue)
     db.session.add(venue)
     db.session.commit()
   except:
@@ -470,13 +459,14 @@ def create_artist_submission():
 
     error = False
     form = ArtistForm(request.form)
-    #print(form.data)
+
     if not form.validate():
       flash_form_error_message(form)
       return render_template('forms/new_artist.html', form=form)      
 
     try:
-      artist = Artist(**form.data)
+      artist = Artist()
+      form.populate_obj(artist)
       db.session.add(artist)
       db.session.commit()
     except:
@@ -537,7 +527,8 @@ def create_show_submission():
     return render_template('forms/new_show.html', form=form)
 
   try:
-    show = Show(**form.data)
+    show = Show()
+    form.populate_obj(show)
     db.session.add(show)
     db.session.commit()
   except:
